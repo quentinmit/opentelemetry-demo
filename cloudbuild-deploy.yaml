@@ -13,24 +13,20 @@
 # limitations under the License.
 
 steps:
-- name: ghcr.io/helmfile/helmfile
-  id: Generate
-  script: |
-    #!/usr/bin/env bash
-    apk add make
-    make generate-kubernetes-manifests HELMFILE_FLAGS="--environment production --state-values-set-string auth_extension_project_id=$PROJECT_ID,auth_extension_quota_project_id=$PROJECT_ID,otlp_endpoint=https://us-central1-telemetry.googleapis.com:443"
-  env:
-  - 'PROJECT_ID=$PROJECT_ID'
-
-# deploy the manifests to the otel-demo namespace in GKE
+# authenticate to the cluster
+# N.B. GCB persists $HOME across steps: https://cloud.google.com/build/docs/release-notes#July_10_2017
 - name: 'gcr.io/cloud-builders/kubectl'
-  id: Deploy
+  id: Authenticate
   args:
-  - 'apply'
-  - '-n'
-  - 'otel-demo'
-  - '-f'
-  - './kubernetes/.'
+  - config
+  - current-context
   env:
   - 'CLOUDSDK_COMPUTE_REGION=${LOCATION}'
   - 'CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}'
+
+# deploy resources
+- name: ghcr.io/helmfile/helmfile
+  id: Deploy
+  script: |
+    #!/usr/bin/env bash
+    helmfile apply -f gcp/helmfile.yaml --environment production --state-values-set-string auth_extension_project_id=$PROJECT_ID,auth_extension_quota_project_id=$PROJECT_ID,otlp_endpoint=https://us-central1-telemetry.googleapis.com:443
